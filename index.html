@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hot Leads · ვერ დავუკავშირდი / ვერშედგა კონტაქტი</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1220; --panel:#171a2b; --panel2:#1f2336; --line:#2a2f47;
+    --txt:#e6e8f0; --mut:#9aa0bd; --acc:#5b8cff; --ge:#34d399; --ac:#fbbf24; --ot:#a78bfa;
+    --warn:#f87171; --ok:#34d399;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,"BPG Nino Mtavruli",sans-serif;background:var(--bg);color:var(--txt);font-size:14px}
+  header{padding:16px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+  header h1{margin:0;font-size:18px;font-weight:600}
+  header .sub{color:var(--mut);font-size:12px;margin-top:4px}
+  .wrap{padding:16px 20px}
+  .toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+  .fld{display:flex;flex-direction:column;gap:4px}
+  .fld label{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
+  input[type=date],input[type=text],select{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px 10px;font-size:14px;outline:none}
+  input[type=text]{min-width:220px}
+  input:focus,select:focus{border-color:var(--acc)}
+  .stages{display:flex;gap:14px;align-items:center}
+  .stages label{display:flex;gap:6px;align-items:center;color:var(--txt);font-size:13px;text-transform:none;letter-spacing:0}
+  button{cursor:pointer;border:none;border-radius:8px;padding:9px 16px;font-size:14px;font-weight:600;background:var(--acc);color:#fff}
+  button.ghost{background:var(--panel2);color:var(--txt);border:1px solid var(--line)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .pills{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .pill{background:var(--panel2);border:1px solid var(--line);color:var(--mut);border-radius:999px;padding:6px 14px;font-size:13px;cursor:pointer;user-select:none}
+  .pill.active{color:#fff;border-color:var(--acc);background:rgba(91,140,255,.16)}
+  .pill .n{opacity:.8;font-weight:700;margin-left:4px}
+
+  .loader{display:none;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+  .loader.on{display:block}
+  .lrow{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .lrow .spin{width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:sp .7s linear infinite;display:inline-block;vertical-align:middle;margin-right:8px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .bar{height:8px;background:var(--panel2);border-radius:999px;overflow:hidden}
+  .bar > i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--acc),#7aa2ff);transition:width .2s}
+  .lstat{font-size:13px;color:var(--mut)} .lstat b{color:var(--txt)}
+
+  .verify{display:none;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px}
+  .verify.on{display:grid}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .card .t{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+  .card .v{font-size:22px;font-weight:700}
+  .card .v small{font-size:12px;color:var(--mut);font-weight:500}
+  .card.good{border-color:rgba(52,211,153,.5)}
+  .card.bad{border-color:rgba(248,113,113,.5)}
+  .chk{font-size:12px;margin-top:6px}
+  .chk.ok{color:var(--ok)} .chk.no{color:var(--warn)}
+  .miniTbl{width:100%;font-size:12px;border-collapse:collapse}
+  .miniTbl td{padding:2px 0;color:var(--mut)} .miniTbl td:last-child{text-align:right;color:var(--txt);font-weight:600}
+
+  .tablewrap{border:1px solid var(--line);border-radius:12px;overflow:auto}
+  table.main{width:100%;border-collapse:collapse;font-size:13px}
+  table.main thead th{position:sticky;top:0;background:var(--panel2);text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);font-weight:600;white-space:nowrap;z-index:2}
+  table.main td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  table.main tbody tr:hover{background:rgba(255,255,255,.03)}
+  .mism{color:var(--warn);font-weight:700;cursor:help}
+  .mono{font-variant-numeric:tabular-nums;font-family:"Cascadia Code",Consolas,monospace}
+  .muted{color:var(--mut)}
+  .empty{padding:40px;text-align:center;color:var(--mut)}
+  a.lnk{color:var(--acc);text-decoration:none} a.lnk:hover{text-decoration:underline}
+  .foot{color:var(--mut);font-size:12px;margin-top:10px}
+  .err{background:rgba(248,113,113,.12);border:1px solid var(--warn);color:#fecaca;border-radius:8px;padding:10px 12px;margin-bottom:12px;display:none}
+
+  /* pagination */
+  .pager{display:none;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px;flex-wrap:wrap}
+  .pager.on{display:flex}
+  .pager button{background:var(--panel2);border:1px solid var(--line);color:var(--txt);padding:7px 12px}
+  .pager .info{color:var(--mut);font-size:13px;margin-right:auto}
+  .pager .pg{font-weight:700}
+
+  /* PIN gate */
+  .gate{position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;align-items:center;justify-content:center}
+  .gate.off{display:none}
+  .gatebox{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:32px 34px;width:320px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+  .gicon{font-size:40px}
+  .gtitle{font-size:18px;font-weight:700;margin-top:8px}
+  .gsub{color:var(--mut);font-size:13px;margin:6px 0 18px}
+  #pin{width:100%;text-align:center;font-size:24px;letter-spacing:8px;padding:12px;margin-bottom:12px}
+  .gate button{width:100%}
+  .gerr{color:var(--warn);font-size:13px;margin-top:10px;min-height:16px}
+</style>
+</head>
+<body>
+<div class="gate" id="gate">
+  <div class="gatebox">
+    <div class="gicon">🔒</div>
+    <div class="gtitle">დაცული რეპორტი</div>
+    <div class="gsub">შესასვლელად შეიყვანე PIN კოდი</div>
+    <input type="password" id="pin" inputmode="numeric" maxlength="8" placeholder="••••" autocomplete="off">
+    <button id="pinBtn">შესვლა</button>
+    <div class="gerr" id="gerr"></div>
+  </div>
+</div>
+
+<header>
+  <h1>🔥 Hot Leads — ვერ დავუკავშირდი / ვერშედგა კონტაქტი</h1>
+  <div class="sub">Pipeline 35 · CRM: archi.ge · ფილტრი შექმნის თარიღით · კლიენტი მიმაგრებული კონტაქტიდან</div>
+</header>
+
+<div class="wrap">
+  <div class="err" id="err"></div>
+
+  <div class="toolbar">
+    <div class="fld"><label>თარიღიდან (შექმნა)</label><input type="date" id="from"></div>
+    <div class="fld"><label>თარიღამდე</label><input type="date" id="to"></div>
+    <div class="fld">
+      <label>ეტაპები</label>
+      <div class="stages">
+        <label><input type="checkbox" class="stg" value="C35:FINAL_INVOICE" checked> ვერ დავუკავშირდი</label>
+        <label><input type="checkbox" class="stg" value="C35:17" checked> ვერშედგა კონტაქტი</label>
+      </div>
+    </div>
+    <button id="loadBtn">ჩატვირთვა</button>
+    <button class="ghost" id="xlsxBtn" disabled>📥 Excel (xlsx)</button>
+    <div class="fld" style="margin-left:auto">
+      <label>ძებნა (კლიენტი / ტელ. / პროექტი / ID)</label>
+      <input type="text" id="search" placeholder="ძებნა…">
+    </div>
+  </div>
+
+  <div class="loader" id="loader">
+    <div class="lrow">
+      <div><span class="spin"></span><span class="lstat" id="lstat">მზადება…</span></div>
+      <div class="lstat"><b id="lpct">0%</b></div>
+    </div>
+    <div class="bar"><i id="lbar"></i></div>
+  </div>
+
+  <div class="verify" id="verify"></div>
+
+  <div class="pills" id="pills" style="display:none">
+    <div class="pill active" data-r="ALL">ყველა<span class="n" id="cAll">0</span></div>
+    <div class="pill" data-r="GE">🇬🇪 საქართველო<span class="n" id="cGE">0</span></div>
+    <div class="pill" data-r="AC">🇺🇸🇨🇦 ამერიკა / კანადა<span class="n" id="cAC">0</span></div>
+    <div class="pill" data-r="OT">🌍 სხვა დანარჩენი<span class="n" id="cOT">0</span></div>
+    <div class="pill" data-r="MISM">⚠ შეუსაბამობა<span class="n" id="cMM">0</span></div>
+  </div>
+
+  <div class="tablewrap">
+    <table class="main">
+      <thead>
+        <tr>
+          <th>#</th><th>Deal ID</th><th>კლიენტი</th><th>ტელეფონი</th>
+          <th>ქვეყანა (CRM)</th><th>ეტაპი</th><th>შექმნის თარიღი</th>
+        </tr>
+      </thead>
+      <tbody id="tbody">
+        <tr><td colspan="7" class="empty">აირჩიე თარიღის დიაპაზონი და დააჭირე „ჩატვირთვა“.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pager" id="pager">
+    <span class="info" id="pinfo"></span>
+    <label class="muted">გვერდზე:
+      <select id="pageSize"><option>50</option><option>100</option><option>200</option><option>500</option></select>
+    </label>
+    <button id="first">«</button>
+    <button id="prev">‹ წინა</button>
+    <span class="pg" id="pgnum">1 / 1</span>
+    <button id="next">შემდეგი ›</button>
+    <button id="last">»</button>
+  </div>
+
+  <div class="foot" id="foot"></div>
+</div>
+
+<script>
+// ---------- კონფიგურაცია (დადასტურებული API-ით) ----------
+const CRM_BASE = "https://crm.archi.ge";
+const WEBHOOK  = CRM_BASE + "/rest/1/xmbjzulaie03bgxg/";
+const CATEGORY = 35;
+const STAGE_NAMES = { "C35:FINAL_INVOICE":"ვერ დავუკავშირდი", "C35:17":"ვერშედგა კონტაქტი" };
+const F = {
+  country: "UF_CRM_1605858507277",   // ქვეყანა (CRM ველი)
+  project: "UF_CRM_1700569256804",   // პროექტი / ლიდ-ფორმა
+};
+const DEAL_SELECT = ["ID","TITLE","DATE_CREATE","STAGE_ID","CONTACT_ID", F.country, F.project];
+const PAGE = 50;          // Bitrix list ლიმიტი
+const DEAL_CMDS = 20;     // deal.list ქვე-ბრძანება / batch  (×50 = 1000 დილი)
+const CONT_CMDS = 25;     // contact.list ქვე-ბრძანება / batch (×50 = 1250 კონტაქტი)
+
+let ROWS = [];            // ნორმალიზებული ჩანაწერები
+let VIEW = [];            // გაფილტრული ხედი
+let curRegion = "ALL";
+let page = 1, pageSize = 50;
+
+// ---------- ჰელფერები ----------
+const $ = id => document.getElementById(id);
+function showErr(m){ const e=$("err"); e.textContent="შეცდომა: "+m; e.style.display="block"; }
+function hideErr(){ $("err").style.display="none"; }
+function digits(s){ return (s||"").replace(/[^\d]/g,""); }
+function esc(s){ return (s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function fmtDate(iso){ return iso ? iso.slice(0,16).replace("T"," ") : ""; }
+const REGION_LABEL = {GE:"საქართველო", AC:"ამერიკა/კანადა", OT:"სხვა"};
+
+// რეგიონი ტელეფონის პრეფიქსით (ჯგუფებისთვის — სვეტი აღარ ჩანს)
+function regionByPhone(phone){
+  const d = digits(phone); if(!d) return null;
+  if(d.startsWith("995")) return "GE";
+  if(d.startsWith("1") && d.length>=10 && d.length<=11) return "AC";
+  return "OT";
+}
+function regionByCountry(c){
+  if(!c) return null; const s=c.trim().toLowerCase();
+  if(s==="georgia"||s==="საქართველო") return "GE";
+  if(["united states","usa","us","united states of america","canada"].includes(s)) return "AC";
+  return "OT";
+}
+
+// ნორმალიზაცია: დილი + მისი კონტაქტი
+function normalize(d, contactsMap){
+  const c = contactsMap[d.CONTACT_ID] || null;
+  const name = c ? (((c.NAME||"")+" "+(c.LAST_NAME||"")).trim()) : "";
+  const phones = c && Array.isArray(c.PHONE) ? c.PHONE.map(p=>p.VALUE).filter(Boolean) : [];
+  const phone = phones[0] || "";
+  const rPhone = regionByPhone(phone);
+  const country = d[F.country] || "";
+  const rCountry = regionByCountry(country);
+  const region = rPhone || rCountry || "OT";
+  const mism = (rPhone && rCountry && rPhone !== rCountry);
+  return {
+    id: d.ID,
+    contactId: d.CONTACT_ID,
+    name: name || "—",
+    phones: phones.length ? phones : [],
+    phone,
+    project: (d[F.project]||"").trim() || "—",
+    country: country || "—",
+    region, rPhone, rCountry, mism,
+    stage: STAGE_NAMES[d.STAGE_ID] || d.STAGE_ID,
+    date: d.DATE_CREATE,
+  };
+}
+
+// ---------- API ----------
+function selectedStages(){ return [...document.querySelectorAll(".stg:checked")].map(c=>c.value); }
+
+async function apiCount(){
+  const p = new URLSearchParams();
+  p.set("filter[CATEGORY_ID]", CATEGORY);
+  selectedStages().forEach((s,i)=>p.set(`filter[STAGE_ID][${i}]`, s));
+  p.set("filter[>=DATE_CREATE]", $("from").value+"T00:00:00");
+  p.set("filter[<=DATE_CREATE]", $("to").value+"T23:59:59");
+  p.set("select[0]","ID"); p.set("start","0");
+  const r = await fetch(WEBHOOK+"crm.deal.list.json",{method:"POST",body:p});
+  const j = await r.json();
+  if(j.error) throw new Error(j.error_description||j.error);
+  return Number(j.total||0);
+}
+
+function dealCmd(start){
+  let q = `crm.deal.list?filter[CATEGORY_ID]=${CATEGORY}`;
+  selectedStages().forEach((s,i)=> q += `&filter[STAGE_ID][${i}]=${s}`);
+  q += `&filter[>=DATE_CREATE]=${$("from").value}T00:00:00`;
+  q += `&filter[<=DATE_CREATE]=${$("to").value}T23:59:59`;
+  DEAL_SELECT.forEach((s,i)=> q += `&select[${i}]=${s}`);
+  q += `&order[ID]=ASC&start=${start}`;
+  return q;
+}
+
+async function batchCall(cmds){ // cmds: {key: queryString}
+  const p = new URLSearchParams();
+  p.set("halt","0");
+  for(const k in cmds) p.set(`cmd[${k}]`, cmds[k]);
+  const r = await fetch(WEBHOOK+"batch.json",{method:"POST",body:p});
+  const j = await r.json();
+  if(j.error) throw new Error(j.error_description||j.error);
+  const res = j.result||{};
+  if(res.result_error && Object.keys(res.result_error).length){
+    const k=Object.keys(res.result_error)[0];
+    throw new Error(JSON.stringify(res.result_error[k]));
+  }
+  return res.result||{};
+}
+
+async function fetchDeals(starts){
+  const cmds={}; starts.forEach((st,i)=>cmds["c"+i]=dealCmd(st));
+  const res = await batchCall(cmds);
+  let out=[]; starts.forEach((_,i)=> out=out.concat(res["c"+i]||[]));
+  return out;
+}
+
+// კონტაქტების წამოღება ID-ების მიხედვით (50 ID / ბრძანება)
+async function fetchContacts(ids){
+  const map={};
+  const uniq=[...new Set(ids.filter(x=>x && x!=="0"))];
+  for(let off=0; off<uniq.length; off += CONT_CMDS*50){
+    const cmds={};
+    for(let ci=0; ci<CONT_CMDS && off+ci*50<uniq.length; ci++){
+      const slice = uniq.slice(off+ci*50, off+ci*50+50);
+      let q="crm.contact.list?select[0]=ID&select[1]=NAME&select[2]=LAST_NAME&select[3]=PHONE";
+      slice.forEach((id,k)=> q+=`&filter[ID][${k}]=${id}`);
+      cmds["k"+ci]=q;
+    }
+    const res = await batchCall(cmds);
+    for(const k in res){ (res[k]||[]).forEach(c=> map[c.ID]=c); }
+  }
+  return map;
+}
+
+// ---------- ჩატვირთვა ----------
+async function load(){
+  hideErr();
+  const stages = selectedStages();
+  if(!stages.length){ showErr("აირჩიე მინიმუმ ერთი ეტაპი."); return; }
+  if(!$("from").value || !$("to").value){ showErr("აირჩიე თარიღის დიაპაზონი."); return; }
+
+  $("loadBtn").disabled=true; $("xlsxBtn").disabled=true;
+  ROWS=[]; VIEW=[]; page=1;
+  $("tbody").innerHTML=""; $("pager").classList.remove("on");
+  $("loader").classList.add("on"); $("verify").classList.remove("on"); $("pills").style.display="none";
+  setProgress(0,"სერვერზე ჩანაწერების დათვლა…");
+
+  try{
+    const total = await apiCount();
+    if(total===0){
+      $("loader").classList.remove("on");
+      $("tbody").innerHTML=`<tr><td colspan="7" class="empty">ამ დიაპაზონში ჩანაწერი არ მოიძებნა.</td></tr>`;
+      $("loadBtn").disabled=false; return;
+    }
+
+    let loaded=0, offset=0;
+    while(offset<total){
+      const starts=[];
+      for(let i=0;i<DEAL_CMDS && offset+i*PAGE<total;i++) starts.push(offset+i*PAGE);
+      const deals = await fetchDeals(starts);
+      if(!deals.length) break;
+      setProgress(Math.round(loaded/total*100), `დილები: <b>${loaded}</b>/${total} · კონტაქტების წამოღება…`);
+      const contacts = await fetchContacts(deals.map(d=>d.CONTACT_ID));
+      deals.forEach(d=> ROWS.push(normalize(d, contacts)));
+      loaded += deals.length;
+      offset += DEAL_CMDS*PAGE;
+      setProgress(Math.round(loaded/total*100), `ჩაიტვირთა <b>${loaded}</b> / ${total} · მიმდინარეობს…`);
+      await new Promise(r=>setTimeout(r));
+    }
+
+    setProgress(100, `დასრულდა · <b>${loaded}</b> ჩანაწერი`);
+    setTimeout(()=>$("loader").classList.remove("on"),600);
+    buildVerify(total, ROWS);
+    buildPills();
+    applyFilter();
+    $("xlsxBtn").disabled=false;
+    $("foot").textContent = `წყარო: crm.deal.list + crm.contact.list · CATEGORY_ID=${CATEGORY} · ეტაპები: ${stages.join(", ")} · ${$("from").value} → ${$("to").value}`;
+  }catch(e){
+    showErr(e.message||String(e)); $("loader").classList.remove("on");
+  }finally{
+    $("loadBtn").disabled=false;
+  }
+}
+function setProgress(pct,txt){ $("lbar").style.width=pct+"%"; $("lpct").textContent=pct+"%"; $("lstat").innerHTML=txt; }
+
+// ---------- ფილტრი + ფეიჯინგი ----------
+function filterRows(){
+  const q=$("search").value.trim().toLowerCase();
+  return ROWS.filter(r=>{
+    let ok=true;
+    if(curRegion==="MISM") ok=r.mism;
+    else if(curRegion!=="ALL") ok=(r.region===curRegion);
+    if(ok && q) ok=(r.name+" "+r.phones.join(" ")+" "+r.project+" "+r.country+" "+r.id).toLowerCase().includes(q);
+    return ok;
+  });
+}
+function applyFilter(){ VIEW=filterRows(); page=1; renderPage(); }
+
+function renderPage(){
+  pageSize = Number($("pageSize").value)||50;
+  const pages = Math.max(1, Math.ceil(VIEW.length/pageSize));
+  if(page>pages) page=pages;
+  const start=(page-1)*pageSize, slice=VIEW.slice(start, start+pageSize);
+  const tb=$("tbody");
+  if(!VIEW.length){ tb.innerHTML=`<tr><td colspan="7" class="empty">ჩანაწერი არ მოიძებნა.</td></tr>`; }
+  else tb.innerHTML = slice.map((r,i)=>rowHtml(r,start+i+1)).join("");
+  $("pager").classList.add("on");
+  $("pgnum").textContent=`${page} / ${pages}`;
+  $("pinfo").textContent = VIEW.length
+    ? `ნაჩვენებია ${start+1}–${Math.min(start+pageSize,VIEW.length)} / ${VIEW.length}` : "0 ჩანაწერი";
+  $("first").disabled=$("prev").disabled=(page<=1);
+  $("last").disabled=$("next").disabled=(page>=pages);
+}
+
+function rowHtml(r, idx){
+  const mism = r.mism ? ` <span class="mism" title="ტელ. პრეფიქსი (${REGION_LABEL[r.rPhone]}) ≠ CRM ქვეყანა (${REGION_LABEL[r.rCountry]})">⚠</span>` : "";
+  const dealUrl = `${CRM_BASE}/crm/deal/details/${r.id}/`;
+  const nameCell = r.contactId && r.contactId!=="0"
+    ? `<a class="lnk" href="${CRM_BASE}/crm/contact/details/${r.contactId}/" target="_blank">${esc(r.name)}</a>`
+    : esc(r.name);
+  const phoneCell = r.phones.length ? esc(r.phones.join(", ")) : `<span class="muted">—</span>`;
+  return `<tr>
+    <td class="muted">${idx}</td>
+    <td><a class="lnk mono" href="${dealUrl}" target="_blank">${esc(r.id)}</a></td>
+    <td>${nameCell}</td>
+    <td class="mono">${phoneCell}</td>
+    <td>${esc(r.country)}${mism}</td>
+    <td class="muted">${esc(r.stage)}</td>
+    <td class="mono muted">${fmtDate(r.date)}</td>
+  </tr>`;
+}
+
+// ---------- გადამოწმების პანელი ----------
+function buildVerify(serverTotal, rows){
+  const by={GE:0,AC:0,OT:0}, mism=rows.filter(r=>r.mism).length, noContact=rows.filter(r=>!r.phone).length;
+  rows.forEach(r=>by[r.region]++);
+  const sum=by.GE+by.AC+by.OT, countMatch=(sum===serverTotal);
+  const cmap={}; rows.forEach(r=>{const c=r.country||"—"; cmap[c]=(cmap[c]||0)+1;});
+  const top=Object.entries(cmap).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([c,n])=>`<tr><td>${esc(c)}</td><td>${n}</td></tr>`).join("");
+  $("verify").innerHTML=`
+    <div class="card ${countMatch?'good':'bad'}">
+      <div class="t">სერვერი → ჩატვირთული</div>
+      <div class="v">${sum} <small>/ ${serverTotal}</small></div>
+      <div class="chk ${countMatch?'ok':'no'}">${countMatch?'✓ რაოდენობა ემთხვევა':'✗ სხვაობა: '+(serverTotal-sum)}</div>
+    </div>
+    <div class="card"><div class="t">🇬🇪 საქართველო (+995)</div><div class="v" style="color:var(--ge)">${by.GE}</div><div class="chk muted">${pct(by.GE,sum)}</div></div>
+    <div class="card"><div class="t">🇺🇸🇨🇦 ამერიკა/კანადა (+1)</div><div class="v" style="color:var(--ac)">${by.AC}</div><div class="chk muted">${pct(by.AC,sum)}</div></div>
+    <div class="card"><div class="t">🌍 სხვა დანარჩენი</div><div class="v" style="color:var(--ot)">${by.OT}</div><div class="chk muted">${pct(by.OT,sum)}</div></div>
+    <div class="card ${mism?'':'good'}"><div class="t">⚠ ჯვარედინი შემოწმება</div><div class="v">${mism}</div><div class="chk ${mism?'no':'ok'}">${mism?'ტელ. ≠ CRM ქვეყანა':'✓ თანხვდება'}</div></div>
+    <div class="card"><div class="t">კონტაქტის ტელ. გარეშე</div><div class="v">${noContact}</div><div class="chk muted">ქვეყანა CRM ველით განისაზღვრა</div></div>
+    <div class="card" style="grid-column:span 2"><div class="t">ქვეყნების ჩაშლა (CRM ველი)</div><table class="miniTbl">${top}</table></div>`;
+  $("verify").classList.add("on");
+}
+function pct(n,t){ return t?(Math.round(n/t*1000)/10)+"%":"0%"; }
+
+function buildPills(){
+  const by={GE:0,AC:0,OT:0,MM:0};
+  ROWS.forEach(r=>{by[r.region]++; if(r.mism)by.MM++;});
+  $("cAll").textContent=ROWS.length; $("cGE").textContent=by.GE;
+  $("cAC").textContent=by.AC; $("cOT").textContent=by.OT; $("cMM").textContent=by.MM;
+  $("pills").style.display="flex";
+}
+
+// ---------- xlsx ექსპორტი ----------
+function exportXlsx(){
+  if(!VIEW.length){ showErr("გასატანი მონაცემი არ არის."); return; }
+  const aoa=[["Deal ID","კლიენტი","ტელეფონი","ქვეყანა","ჯგუფი","ეტაპი","შექმნის თარიღი","Contact ID","შეუსაბამობა"]];
+  VIEW.forEach(r=>aoa.push([
+    r.id, r.name, r.phones.join(", "), r.country,
+    REGION_LABEL[r.region], r.stage, fmtDate(r.date), r.contactId, r.mism?"YES":""
+  ]));
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"]=[{wch:10},{wch:24},{wch:20},{wch:16},{wch:14},{wch:18},{wch:18},{wch:10},{wch:12}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "HotLeads");
+  XLSX.writeFile(wb, `hotleads_${$("from").value}_${$("to").value}.xlsx`);
+}
+
+// ---------- PIN gate ----------
+const PIN="3377";
+function checkPin(){
+  if($("pin").value.trim()===PIN){
+    sessionStorage.setItem("hl_auth","1");
+    $("gate").classList.add("off"); $("pin").value=""; $("gerr").textContent="";
+  } else {
+    $("gerr").textContent="არასწორი PIN კოდი"; $("pin").value=""; $("pin").focus();
+  }
+}
+
+// ---------- ინიციალიზაცია ----------
+(function init(){
+  if(sessionStorage.getItem("hl_auth")==="1") $("gate").classList.add("off");
+  else { setTimeout(()=>$("pin").focus(),50); }
+  $("pinBtn").onclick=checkPin;
+  $("pin").addEventListener("keydown",e=>{ if(e.key==="Enter") checkPin(); });
+
+  const today=new Date(), from=new Date(today.getTime()-30*86400000);
+  $("to").value=today.toISOString().slice(0,10);
+  $("from").value=from.toISOString().slice(0,10);
+  $("loadBtn").onclick=load;
+  $("xlsxBtn").onclick=exportXlsx;
+  $("search").oninput=applyFilter;
+  $("pageSize").onchange=()=>{page=1;renderPage();};
+  $("first").onclick=()=>{page=1;renderPage();};
+  $("prev").onclick=()=>{page--;renderPage();};
+  $("next").onclick=()=>{page++;renderPage();};
+  $("last").onclick=()=>{page=1e9;renderPage();};
+  document.querySelectorAll(".pill").forEach(p=>p.onclick=()=>{
+    document.querySelectorAll(".pill").forEach(x=>x.classList.remove("active"));
+    p.classList.add("active"); curRegion=p.dataset.r; applyFilter();
+  });
+})();
+</script>
+</body>
+</html>
