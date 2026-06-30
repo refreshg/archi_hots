@@ -23,8 +23,14 @@
   input[type=date],input[type=text],select{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px 10px;font-size:14px;outline:none}
   input[type=text]{min-width:220px}
   input:focus,select:focus{border-color:var(--acc)}
-  .stages{display:flex;gap:14px;align-items:center}
-  .stages label{display:flex;gap:6px;align-items:center;color:var(--txt);font-size:13px;text-transform:none;letter-spacing:0}
+  .dd{position:relative}
+  .ddbtn{padding:8px 12px}
+  .ddpanel{display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:50;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px;min-width:230px;max-height:320px;overflow:auto;box-shadow:0 16px 40px rgba(0,0,0,.4)}
+  .ddpanel.on{display:block}
+  .ddpanel label{display:flex;gap:8px;align-items:center;padding:6px 8px;border-radius:7px;font-size:13px;cursor:pointer}
+  .ddpanel label:hover{background:var(--panel2)}
+  .ddtools{display:flex;gap:8px;padding:4px 8px 8px;border-bottom:1px solid var(--line);margin-bottom:6px}
+  .ddtools a{color:var(--acc);font-size:12px;cursor:pointer}
   button{cursor:pointer;border:none;border-radius:8px;padding:9px 16px;font-size:14px;font-weight:600;background:var(--acc);color:#fff}
   button.ghost{background:var(--panel2);color:var(--txt);border:1px solid var(--line)}
   button:disabled{opacity:.5;cursor:not-allowed}
@@ -113,9 +119,9 @@
     <div class="fld"><label>თარიღამდე</label><input type="date" id="to"></div>
     <div class="fld">
       <label>ეტაპები</label>
-      <div class="stages">
-        <label><input type="checkbox" class="stg" value="C35:FINAL_INVOICE" checked> ვერ დავუკავშირდი</label>
-        <label><input type="checkbox" class="stg" value="C35:17" checked> ვერშედგა კონტაქტი</label>
+      <div class="dd">
+        <button type="button" class="ghost ddbtn" id="stgBtn">ეტაპები <span id="stgCount">(2)</span> ▾</button>
+        <div class="ddpanel" id="stgPanel"></div>
       </div>
     </div>
     <button id="loadBtn">ჩატვირთვა</button>
@@ -178,7 +184,26 @@
 const CRM_BASE = "https://crm.archi.ge";
 const WEBHOOK  = CRM_BASE + "/rest/1/xmbjzulaie03bgxg/";
 const CATEGORY = 35;
-const STAGE_NAMES = { "C35:FINAL_INVOICE":"ვერ დავუკავშირდი", "C35:17":"ვერშედგა კონტაქტი" };
+// ეტაპები — default-ად მონიშნულია მხოლოდ ორი; დანარჩენი არჩევადია
+const STAGES = [
+  {id:"C35:FINAL_INVOICE", name:"ვერ დავუკავშირდი", def:true},
+  {id:"C35:17",            name:"ვერშედგა კონტაქტი", def:true},
+  {id:"C35:NEW",           name:"ახალი"},
+  {id:"C35:PREPARATION",   name:"დამუშავება"},
+  {id:"C35:LOSE",          name:"არასრულყოფილია ნომერი"},
+  {id:"C35:1",             name:"უარი/არ აინტერესებს"},
+  {id:"C35:2",             name:"არარელევანტური"},
+  {id:"C35:3",             name:"სამომავლო ლიდი"},
+  {id:"C35:4",             name:"Service"},
+  {id:"C35:5",             name:"Rent"},
+  {id:"C35:6",             name:"Fix"},
+  {id:"C35:7",             name:"Resale"},
+  {id:"C35:8",             name:"Rent commercial"},
+  {id:"C35:9",             name:"ვადაგასული"},
+  {id:"C35:15",            name:"Viber / WhatsAPP"},
+  {id:"C35:16",            name:"უარყოფილი"},
+];
+const STAGE_NAMES = Object.fromEntries(STAGES.map(s=>[s.id, s.name]));
 const F = {
   country: "UF_CRM_1605858507277",   // ქვეყანა (CRM ველი)
   project: "UF_CRM_1700569256804",   // პროექტი / ლიდ-ფორმა
@@ -257,9 +282,14 @@ function normalize(d, contactsMap){
   const rPhone = regionByPhone(phone);
   const crmCountry = (d[F.country]||"").trim();
   const rCountry = regionByCountry(crmCountry);
-  // ქვეყანა: CRM ველი; თუ ცარიელია — ტელეფონის პრეფიქსით
-  let country = crmCountry, countrySrc = crmCountry ? "crm" : "";
-  if(!crmCountry){ const byPh = countryByPhone(phone); if(byPh){ country = byPh; countrySrc = "phone"; } }
+  // ქვეყანა: CRM ველი (პრიორიტეტი); თუ ცარიელია — თითო ნომერზე თითო ქვეყანა პრეფიქსით
+  let country, countrySrc;
+  if(crmCountry){ country = crmCountry; countrySrc = "crm"; }
+  else {
+    const list = phones.map(p=>countryByPhone(p)||"?");
+    country = list.length ? list.join(", ") : "";
+    countrySrc = list.length ? "phone" : "";
+  }
   const region = rPhone || rCountry || "OT";
   const mism = (rPhone && rCountry && rPhone !== rCountry);
   return {
@@ -279,6 +309,18 @@ function normalize(d, contactsMap){
 
 // ---------- API ----------
 function selectedStages(){ return [...document.querySelectorAll(".stg:checked")].map(c=>c.value); }
+function updateStageCount(){ $("stgCount").textContent="("+selectedStages().length+")"; }
+function renderStages(){
+  const p=$("stgPanel");
+  p.innerHTML =
+    `<div class="ddtools"><a id="stgAll">ყველა</a><a id="stgNone">გასუფთავება</a><a id="stgDef">დეფოლტი</a></div>` +
+    STAGES.map(s=>`<label><input type="checkbox" class="stg" value="${s.id}" ${s.def?"checked":""}> ${esc(s.name)}</label>`).join("");
+  p.querySelectorAll(".stg").forEach(c=>c.addEventListener("change",updateStageCount));
+  $("stgAll").onclick=()=>{p.querySelectorAll(".stg").forEach(c=>c.checked=true);updateStageCount();};
+  $("stgNone").onclick=()=>{p.querySelectorAll(".stg").forEach(c=>c.checked=false);updateStageCount();};
+  $("stgDef").onclick=()=>{p.querySelectorAll(".stg").forEach(c=>{c.checked=STAGES.find(s=>s.id===c.value).def||false;});updateStageCount();};
+  updateStageCount();
+}
 
 async function apiCount(){
   const p = new URLSearchParams();
@@ -435,7 +477,7 @@ function rowHtml(r, idx){
     <td><a class="lnk mono" href="${dealUrl}" target="_blank">${esc(r.id)}</a></td>
     <td>${nameCell}</td>
     <td class="mono">${phoneCell}</td>
-    <td>${esc(r.country)}${r.countrySrc==="phone"?` <sup class="src" title="ტელეფონის პრეფიქსით განსაზღვრული">tel</sup>`:""}${mism}</td>
+    <td>${esc(r.country)}${mism}</td>
     <td class="muted">${esc(r.stage)}</td>
     <td class="mono muted">${fmtDate(r.date)}</td>
   </tr>`;
@@ -504,6 +546,11 @@ function checkPin(){
   else { setTimeout(()=>$("pin").focus(),50); }
   $("pinBtn").onclick=checkPin;
   $("pin").addEventListener("keydown",e=>{ if(e.key==="Enter") checkPin(); });
+
+  renderStages();
+  $("stgBtn").onclick=(e)=>{ e.stopPropagation(); $("stgPanel").classList.toggle("on"); };
+  $("stgPanel").onclick=(e)=>e.stopPropagation();
+  document.addEventListener("click",()=>$("stgPanel").classList.remove("on"));
 
   const today=new Date(), from=new Date(today.getTime()-30*86400000);
   $("to").value=today.toISOString().slice(0,10);
